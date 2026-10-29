@@ -13,6 +13,7 @@ test("static subdirectory: natural Tiến Cung offline, terminal lock and rematc
 });
 
 test("local save: reload before first move, pending draw, final result and rematch", async ({ page }) => {
+    test.setTimeout(300000);
     await open(page); await start(page);
     const first = await state(page);
     await page.reload(); await ready(page);

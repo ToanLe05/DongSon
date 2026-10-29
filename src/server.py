@@ -10,7 +10,6 @@ Save/load preserves board/clocks/repetition/draw state but not move history.
 
 import os
 import json
-import random
 import copy
 import uuid
 from contextvars import ContextVar
@@ -31,6 +30,9 @@ from dongson_engine import (
     Move,
 )
 import serializers as ser
+from bot_agent import BotAgent
+
+bot_agent = BotAgent()
 
 
 # --------------------------------------------------------------------------- #
@@ -315,12 +317,12 @@ def redo(req: StateRequest = StateRequest()):
 def ai_move(req: AiMoveRequest = AiMoveRequest()):
 
     require_active(req)
-    moves = get_session().game.legal_moves()
-    if not moves:
+    try:
+        chosen = bot_agent.select_move(copy.deepcopy(get_session().game))
+    except Exception:
+        raise HTTPException(status_code=503, detail="Bot gặp lỗi khi chọn nước. Ván cờ được giữ nguyên.") from None
+    if not isinstance(chosen, Move) or not get_session().game.make_move(chosen):
         raise HTTPException(status_code=409, detail="No legal moves available")
-
-    chosen = random.choice(moves)
-    get_session().game.make_move(chosen)
     get_session().redo_stack = []
     return changed_state()
 

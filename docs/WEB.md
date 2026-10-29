@@ -1,6 +1,14 @@
 # Bản web hai người — Python trong trình duyệt
 
-Bản mặc định hiện là **website tĩnh**. Hai người luân phiên trên cùng thiết bị. Bộ luật Python gốc chạy bằng Pyodide trong Web Worker; không cần FastAPI, tài khoản, máy chủ Python hoặc CDN để tính nước đi.
+Bản mặc định hiện là **website tĩnh**. Có thể chọn hai người luân phiên trên cùng thiết bị hoặc đấu với bot cơ bản chọn nước hợp lệ ngẫu nhiên. Bộ luật Python gốc chạy bằng Pyodide trong Web Worker; không cần FastAPI, tài khoản, máy chủ Python hoặc CDN để tính nước đi.
+
+Màn chọn trước trận cho phép chọn chế độ và bên cầm quân. Thủy luôn đi trước; người cầm Sơn chờ bot đi nước mở đầu. Trong lượt bot, bàn khóa thao tác và hiển thị trạng thái đang chọn nước. Bot tự chọn phong cấp và chấp nhận đề nghị hòa hợp lệ của người chơi. Cấu hình được lưu cùng trạng thái/JSON; bản lưu cũ mặc định là Hai người. Khi ván kết thúc có thể đổi lựa chọn rồi Chơi lại.
+
+[Định dạng cấu hình và tương thích bản lưu](MATCH_CONFIG.md): `matchConfig` dùng `mode: "human_vs_human"` hoặc `"human_vs_bot"`, `humanColor` và `botId`. Khi nạp ván, cấu hình trong bản lưu quyết định ai điều khiển mỗi bên.
+
+[Bộ điều phối lượt](TURN_COORDINATION.md) chỉ giữ một yêu cầu bot đang chạy, cho tải/nhập ván trong lượt bot và bỏ qua phản hồi của ván cũ khi đã thay ván.
+
+Trong chế độ bot, chỉ người chơi được yêu cầu đầu hàng và kết quả luôn tính cho bên đã chọn. Nút này dùng được cả khi bot đang nghĩ. Agent chỉ trả nước đi, tự chọn phong cấp; không gửi đề nghị hòa/đầu hàng. Cầu nối gọi agent trên bản sao để lỗi chọn nước không sửa ván thật.
 
 ## Chạy và phát triển
 
@@ -34,8 +42,9 @@ Container đọc `PORT` (mặc định 8000) và `HOST` (mặc định 0.0.0.0).
 ## Bộ chạy và luồng dữ liệu
 
 - Pyodide **0.29.5**, Python WebAssembly **3.13.2**; khóa trong package-lock.json.
-- Vite đóng gói nguyên văn `dongson_engine.py`, `serializers.py`, `browser_bridge.py` vào Worker. Không viết lại luật sang JavaScript.
+- Vite đóng gói nguyên văn `dongson_engine.py`, `serializers.py`, `bot_agent.py`, `browser_bridge.py` vào Worker. Không viết lại luật sang JavaScript.
 - `LocalClient → WorkerRpc → python.worker → BrowserSession → DongSonGame`.
+- Khi đến lượt bot: `BrowserSession → BotAgent.select_move(game) → DongSonGame.make_move(move)`. Agent chỉ chọn nước; cầu nối và bộ luật xác nhận rồi thực hiện. Xem [điểm vào bot](BOT_AGENT.md).
 - Cầu nối trả JSON cùng dạng trạng thái mà giao diện đang dùng; mỗi lệnh có ID riêng. Không gửi nước đi, thế cờ hoặc kết quả tới API.
 - Một hàng đợi bao gồm cả khởi tạo, tính luật và lưu ván. Các lệnh sửa ván vẫn kiểm tra gameId/revision và khóa kết quả cuối.
 - Cầu nối không dùng SharedArrayBuffer; hosting thử chỉ có các MIME thông thường, không cần COOP/COEP. Khi hết thời gian, đóng Worker và khôi phục từ bản lưu.

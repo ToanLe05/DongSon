@@ -14,13 +14,28 @@
     </div>
 
     <div id="control-bar">
+      <section id="match-setup" aria-labelledby="setup-title">
+        <h2 id="setup-title">Chọn cách chơi</h2>
+        <fieldset id="mode-options">
+          <legend>Chế độ</legend>
+          <label class="mode-option"><input type="radio" name="play-mode" value="human_vs_human" checked /> <span><strong>Hai người</strong><small>Hai người luân phiên trên cùng thiết bị.</small></span></label>
+          <label class="mode-option"><input type="radio" name="play-mode" value="human_vs_bot" /> <span><strong>Chơi với bot</strong><small>Bot cơ bản chọn nước đi hợp lệ.</small></span></label>
+        </fieldset>
+        <fieldset id="side-options" hidden>
+          <legend>Bạn cầm bên nào?</legend>
+          <label><input type="radio" name="human-side" value="thuy" checked /> Thủy</label>
+          <label><input type="radio" name="human-side" value="son" /> Sơn</label>
+          <p>Thủy luôn đi trước. Nếu bạn cầm Sơn, bot sẽ đi nước đầu tiên.</p>
+        </fieldset>
+      </section>
       <div id="match-info">
-        <div class="play-mode">Hai người · Cùng thiết bị · Thủy đi trước</div>
+        <div id="play-mode-label" class="play-mode">Hai người · Cùng thiết bị · Thủy đi trước</div>
         <div id="status-line" role="status" aria-live="polite">Đang tải bàn cờ…</div>
         <div id="action-message" role="alert"></div>
       </div>
       <div id="controls">
-        <button id="btn-start" class="btn btn-primary" disabled>Bắt đầu</button>
+        <button id="btn-start" class="btn btn-primary" disabled>Bắt đầu trận đấu</button>
+        <button id="btn-retry-bot" class="btn btn-primary" hidden>Thử lại lượt bot</button>
         <button id="btn-rematch" class="btn btn-primary" hidden>Chơi lại</button>
         <button id="btn-end" class="btn btn-ghost" disabled>Đầu hàng</button>
         <button id="btn-draw" class="btn btn-ghost" hidden disabled>Đề nghị hòa</button>
@@ -41,8 +56,10 @@
     </div>
 
     <dialog id="rules-dialog" class="choice-dialog" aria-labelledby="rules-title">
-      <h2 id="rules-title">Cách chơi hai người</h2>
-      <p>Hai người luân phiên trên bàn này. Bấm quân của bên đến lượt để xem nước hợp lệ, rồi bấm ô đích. Bấm lại quân để bỏ chọn. Thủy ở dưới, Sơn ở trên.</p>
+      <h2 id="rules-title">Cách chơi</h2>
+      <p>Chọn Hai người để luân phiên trên cùng thiết bị, hoặc Chơi với bot và chọn bên cầm quân. Thủy luôn đi trước. Bot hiện chọn ngẫu nhiên một nước hợp lệ, tự chọn phong cấp và đồng ý khi bạn đề nghị hòa hợp lệ.</p>
+      <p>Bấm quân của bên bạn điều khiển khi đến lượt để xem nước hợp lệ, rồi bấm ô đích. Bấm lại quân để bỏ chọn. Thủy ở dưới, Sơn ở trên.</p>
+      <p>Trong chế độ bot, bạn chỉ điều khiển bên đã chọn. Bot tự chọn phong cấp, không đề nghị hòa hoặc đầu hàng. Nút Đầu hàng luôn tính cho bên của bạn, kể cả khi bot đang nghĩ. Sau khi ván kết thúc, Chơi lại giữ lựa chọn cũ; bạn có thể đổi chế độ hoặc bên trước khi bấm.</p>
       <ul>
         <li><strong>Thần:</strong> đi thẳng hoặc chéo bao nhiêu ô tùy ý; không được để Thần bị chiếu.</li>
         <li><strong>Lạc:</strong> đi thẳng. <strong>Bộ:</strong> tiến 1 ô trống, bắt chéo trước. <strong>Đinh:</strong> đi hoặc bắt thẳng trước 1 ô.</li>

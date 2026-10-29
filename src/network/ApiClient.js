@@ -200,7 +200,7 @@ export default class ApiClient {
     // AI Move
     //-------------------------------------------------------
 
-    async aiMove(level = 1) {
+    async aiMove(level = 1, context = {}) {
 
         return this.request(
 
@@ -210,7 +210,7 @@ export default class ApiClient {
 
             {
 
-                level
+                level, ...context
 
             }
 

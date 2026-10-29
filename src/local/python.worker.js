@@ -1,9 +1,10 @@
 import engineSource from "../dongson_engine.py?raw";
 import serializerSource from "../serializers.py?raw";
 import bridgeSource from "../browser_bridge.py?raw";
+import botSource from "../bot_agent.py?raw";
 import { openStore, readSnapshot, commitSnapshot, writeSavedGame, savedSlotKey } from "./storage.js";
 
-const MUTATIONS = new Set(["/new_game", "/move", "/resign", "/draw", "/import"]);
+const MUTATIONS = new Set(["/new_game", "/move", "/ai_move", "/resign", "/draw", "/import"]);
 let api, db, key, persisted = null;
 let queue = Promise.resolve();
 
@@ -17,7 +18,8 @@ async function initialize(config, id) {
     const python = await loadPyodide({ indexURL: config.runtimeURL });
     self.postMessage({ type: "progress", id, message: "Đang chuẩn bị bàn cờ và khôi phục ván…" });
     python.FS.mkdirTree("/home/pyodide/dongson");
-    for (const [name, source] of Object.entries({ dongson_engine: engineSource, serializers: serializerSource, browser_bridge: bridgeSource })) {
+    for (const [name, source] of Object.entries({ dongson_engine: engineSource, serializers: serializerSource,
+        bot_agent: botSource, browser_bridge: bridgeSource })) {
         python.FS.writeFile(`/home/pyodide/dongson/${name}.py`, source, { encoding: "utf8" });
     }
     python.runPython('import sys; sys.path.insert(0, "/home/pyodide/dongson")');

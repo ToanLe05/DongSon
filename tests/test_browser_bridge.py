@@ -21,6 +21,82 @@ def started():
     return s
 
 
+@pytest.mark.parametrize("side", ["thuy", "son"])
+def test_bot_config_turn_guards_roundtrip_and_one_move(side):
+    s = BrowserSession()
+    s.dispatch("/new_game", context(s, mode="human_vs_bot", humanColor=side, botId="random"))
+    assert s.state()["turn"] == "thuy"
+    assert s.state()["matchConfig"] == {"mode": "human_vs_bot", "humanColor": side, "botId": "random"}
+    s = BrowserSession.restore(s.checkpoint())
+    if side == "thuy":
+        with pytest.raises(RuleError, match="Đang đến lượt"):
+            s.dispatch("/ai_move", context(s))
+        s.dispatch("/move", context(s, **{"from": "a2", "to": "a3"}))
+    else:
+        with pytest.raises(RuleError, match="Hãy chờ bot"):
+            s.dispatch("/move", context(s, **{"from": "a2", "to": "a3"}))
+    before = s.state()
+    request = context(s)
+    after = s.dispatch("/ai_move", request)
+    assert after["movesPlayed"] == before["movesPlayed"] + 1
+    assert after["revision"] == before["revision"] + 1
+    assert after["turn"] == side
+    with pytest.raises(RuleError):
+        s.dispatch("/ai_move", request)
+    assert BrowserSession.restore(s.checkpoint()).state() == after
+    exported = s.dispatch("/export", context(s))["file"]
+    target = BrowserSession()
+    assert target.dispatch("/import", context(target, file=exported))["matchConfig"] == after["matchConfig"]
+    s.dispatch("/resign", context(s))
+    with pytest.raises(RuleError, match="kết thúc"):
+        s.dispatch("/ai_move", context(s))
+    assert s.dispatch("/new_game", context(s))["matchConfig"]["mode"] == "human_vs_human"
+
+
+def test_bot_accepts_human_draw_offer_without_extra_move():
+    s = BrowserSession()
+    s.dispatch("/new_game", context(s, mode="human_vs_bot", humanColor="thuy", botId="random"))
+    s.dispatch("/move", context(s, **{"from": "a2", "to": "a3"}))
+    s.dispatch("/ai_move", context(s))
+    count = s.game.moves_played
+    s.dispatch("/draw", context(s, action="offer"))
+    assert s.dispatch("/ai_move", context(s))["winner"] == "draw"
+    assert s.game.moves_played == count
+
+
+@pytest.mark.parametrize("kind", ["Ngua", "Voi", "Ga"])
+def test_bot_commits_a_legal_promotion(kind, monkeypatch):
+    s = BrowserSession()
+    s.dispatch("/new_game", context(s, mode="human_vs_bot", humanColor="son", botId="random"))
+    s.game = position({"a8": {"color": "thuy", "type": "Bo"},
+                       "h8": {"color": "son", "type": "Dinh"}}, "thuy")
+    monkeypatch.setattr("bot_agent.random.choice", lambda moves: next(
+        m for m in moves if m.promotion is not None and m.promotion.value == kind))
+    state = s.dispatch("/ai_move", context(s))
+    assert state["lastMove"]["promotion"] == kind
+    assert state["turn"] == "son"
+    assert BrowserSession.restore(s.checkpoint()).state() == state
+
+
+def test_pvp_and_legacy_snapshots_do_not_enable_bot():
+    s = started()
+    old = json.loads(s.checkpoint())
+    old.pop("matchConfig")
+    s = BrowserSession.restore(json.dumps(old))
+    assert s.state()["matchConfig"]["mode"] == "human_vs_human"
+    with pytest.raises(RuleError, match="hai người"):
+        s.dispatch("/ai_move", context(s))
+
+
+@pytest.mark.parametrize("mode,side", [("bad", "thuy"), ("bot", "bad")])
+def test_invalid_match_config_keeps_current_game(mode, side):
+    s = BrowserSession()
+    before = s.checkpoint()
+    with pytest.raises(RuleError):
+        s.dispatch("/new_game", context(s, mode=mode, humanSide=side))
+    assert s.checkpoint() == before
+
+
 def test_start_reload_moves_terminal_lock_and_rematch():
     s = started()
     before = s.state()

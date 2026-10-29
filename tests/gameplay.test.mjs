@@ -258,3 +258,94 @@ test("API draw methods send distinct offer, response and claim actions", async (
     assert.equal((await api.claimFiftyMoveDraw(context)).body.action, "claim_fifty");
     assert.deepEqual((await api.resign(context)).body, context);
 });
+
+test("bot RPC carries game version through GameSync and ApiClient, deduplicates and stops at game over", async () => {
+    const pending = deferred(), calls = [], animations = [];
+    const before = { gameId: "bot-game", revision: 7, turn: "son", pieces: [] };
+    const after = { ...before, revision: 8, turn: "thuy", lastMove: { from: "a8", to: "a7" } };
+    const api = new ApiClient();
+    api.request = async (path, method, body) => {
+        calls.push({ path, method, body });
+        return pending.promise;
+    };
+    const board = {
+        inputManager: { clearSelection() {} },
+        updateBoard(state) { this.state = state; },
+        pieceLayer: { async animateMove(move) { animations.push(move); } },
+        effectLayer: { async playVictory() {} },
+    };
+    const sync = new GameSync(board, api);
+    sync.state = before;
+    const first = sync.aiMove(1);
+    await sync.aiMove(1);
+    assert.equal(sync.isBusy(), true);
+    assert.deepEqual(calls, [{ path: "/ai_move", method: "POST",
+        body: { level: 1, gameId: "bot-game", revision: 7 } }]);
+    pending.resolve(after);
+    assert.equal(await first, after);
+    assert.deepEqual(animations, [after.lastMove]);
+    assert.equal(board.state, after);
+    assert.equal(sync.isBusy(), false);
+    for (const terminal of [{ gameOver: true }, { winner: "son" }, { winner: "draw" }]) {
+        sync.state = { ...after, ...terminal };
+        await sync.aiMove();
+    }
+    assert.equal(calls.length, 1);
+});
+
+for (const fail of [false, true]) test(`loading another game ignores a late bot ${fail ? "error" : "reply"} and retains one bot request`, async () => {
+    const old = deferred(), calls = [];
+    const original = { gameId: "old", revision: 0, turn: "thuy", pieces: [] };
+    const committed = { ...original, revision: 1, turn: "son", lastMove: { from: "a2", to: "a3" } };
+    const loaded = { gameId: "loaded", revision: 0, turn: "thuy", pieces: [] };
+    const board = { inputManager: { clearSelection() {} }, resetBoard() {},
+        updateBoard(state) { this.state = state; },
+        pieceLayer: { async animateMove() { assert.fail("Old move must not animate"); } },
+        effectLayer: { async playVictory() {} } };
+    const api = { aiMove(level, context) { calls.push(context); return old.promise; },
+        async getState() { return committed; },
+        async importGame(file, context) { assert.deepEqual(context, { gameId: "old", revision: 1 }); return loaded; } };
+    const sync = new GameSync(board, api); sync.state = original;
+    const pending = sync.aiMove();
+    await sync.importGame("file");
+    assert.equal(sync.exportState(), loaded);
+    assert.equal(sync.isBusy(), false);
+    assert.equal(sync.isBotBusy(), true);
+    await sync.aiMove();
+    assert.equal(calls.length, 1);
+    if (fail) old.reject(Object.assign(new Error("old error"), { state: committed }));
+    else old.resolve(committed);
+    await pending;
+    assert.equal(sync.exportState(), loaded);
+    assert.equal(board.state, loaded);
+    assert.equal(sync.isBotBusy(), false);
+});
+
+test("an old bot completion cannot unlock a pending import", async () => {
+    const bot = deferred(), imported = deferred();
+    const before = { gameId: "old", revision: 0, pieces: [] };
+    const board = { inputManager: { clearSelection() {} }, resetBoard() {}, updateBoard() {} };
+    const sync = new GameSync(board, { aiMove: () => bot.promise, getState: async () => before, importGame: () => imported.promise });
+    sync.state = before;
+    const old = sync.aiMove(); const replacement = sync.importGame("file");
+    bot.resolve({ ...before, revision: 1 }); await old;
+    assert.equal(sync.isBusy(), true);
+    const loaded = { gameId: "new", revision: 0, pieces: [] };
+    imported.resolve(loaded); await replacement;
+    assert.equal(sync.exportState(), loaded); assert.equal(sync.isBusy(), false);
+});
+
+test("a bot animation completing after replacement cannot restore the old board", async () => {
+    const animation = deferred(), started = deferred();
+    const before = { gameId: "old", revision: 0, pieces: [] };
+    const loaded = { gameId: "new", revision: 0, pieces: [] };
+    const board = { inputManager: { clearSelection() {} }, resetBoard() {}, updateBoard(state) { this.state = state; },
+        pieceLayer: { animateMove() { started.resolve(); return animation.promise; } } };
+    const sync = new GameSync(board, { aiMove: async () => ({ ...before, revision: 1, lastMove: {} }),
+        getState: async () => ({ ...before, revision: 1 }), importGame: async () => loaded });
+    sync.state = before;
+    const old = sync.aiMove(); await started.promise;
+    await sync.importGame("file");
+    animation.resolve(); await old;
+    assert.equal(sync.exportState(), loaded); assert.equal(board.state, loaded);
+});

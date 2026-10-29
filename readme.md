@@ -1,6 +1,12 @@
-# Cờ Đông Sơn — hai người trên cùng thiết bị
+# Cờ Đông Sơn — hai người hoặc chơi với bot
 
 Bản web mặc định chạy bộ luật Python **ngay trong trình duyệt bằng Pyodide/Web Worker**. Hai người luân phiên trên cùng bàn cờ, có chọn phong cấp, Hoán Quân, hòa, đầu hàng, lý do kết thúc và chơi lại. Không cần FastAPI hoặc cài Python để chơi.
+
+Trước trận, chọn **Hai người** hoặc **Chơi với bot**, chọn cầm Thủy/Sơn rồi bấm **Bắt đầu trận đấu**. Thủy luôn đi trước; nếu bạn cầm Sơn thì bot đi nước đầu. Bot hiện chọn ngẫu nhiên một nước hợp lệ, tự chọn phong cấp và đồng ý đề nghị hòa hợp lệ. Chế độ và bên cầm quân được giữ khi tải lại/lưu ván; sau khi kết thúc có thể chọn lại trước khi Chơi lại.
+
+[Quy định thao tác với bot](docs/BOT_POLICIES.md): chỉ điều khiển bên đã chọn, đầu hàng tính cho bên người chơi, agent không đề nghị hòa/đầu hàng và lỗi chọn nước không sửa bàn thật.
+
+[Báo cáo kiểm tra trước phát hành](docs/RELEASE_TEST_REPORT.md): 188 kiểm thử Python, 48 JavaScript và 36 ca giao diện đã đạt; có ghi rõ lần chạy lại do giới hạn thời gian của bài thử.
 
 ## Chạy từ mã nguồn
 

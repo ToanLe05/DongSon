@@ -21,6 +21,7 @@
     "pretest:web:browser": "node scripts/run-python.cjs scripts/make-worker-fixtures.py",
     "test:web:browser": "playwright test --config playwright.local.config.cjs",
     "test:bridge": "node scripts/run-python.cjs -m pytest tests/test_browser_bridge.py -q -p no:cacheprovider",
+    "test:bot": "node scripts/run-python.cjs -m pytest tests/test_bot_agent.py tests/test_bot_policies.py -q -p no:cacheprovider",
     "test:files": "node scripts/run-python.cjs -m pytest tests/test_game_files.py -q -p no:cacheprovider",
     "test:desktop": "node scripts/run-python.cjs -m pytest tests/test_desktop_host.py -q -p no:cacheprovider"
   },

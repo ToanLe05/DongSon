@@ -52,7 +52,7 @@ Nếu tải thủ công lên hosting khác, tải **toàn bộ nội dung** `dis
 - Ảnh, hình quân và favicon đi qua cơ chế tài nguyên của Vite; bản build đặt chúng vào `assets/` và tự thêm base. Không ghép thêm `/assets/` cố định hoặc thêm base lần thứ hai.
 - Worker được Vite đóng gói; địa chỉ bộ chạy Python lấy từ `import.meta.env.BASE_URL`, hoạt động cả khi mở URL kết thúc bằng `index.html`.
 - Năm tệp bộ chạy Python được chép từ gói Pyodide đã khóa vào `python-runtime/`. Chế độ phát triển cũng phục vụ chúng dưới cùng base, với MIME phù hợp.
-- `dongson_engine.py`, `serializers.py` và `browser_bridge.py` được nhập bằng `?raw` và đóng gói trong Worker. Không có yêu cầu HTTP tải riêng tệp `.py`. Đường dẫn `/home/pyodide/dongson` là hệ thống tệp bên trong Python, không phải đường dẫn website.
+- `dongson_engine.py`, `serializers.py`, `bot_agent.py` và `browser_bridge.py` được nhập bằng `?raw` và đóng gói trong Worker. Không có yêu cầu HTTP tải riêng tệp `.py`. Đường dẫn `/home/pyodide/dongson` là hệ thống tệp bên trong Python, không phải đường dẫn website.
 - Giao diện dùng phông hệ thống `Segoe UI`, `Arial`, `sans-serif`; chữ trên bàn dùng `Georgia`, `Times New Roman`, `serif`. Không cần tải phông từ CDN. Hình dáng chữ có thể khác nhẹ giữa các hệ điều hành.
 
 Tham khảo [tài nguyên tĩnh của Vite](https://vite.dev/guide/assets) và [base khi dựng bản web](https://vite.dev/guide/build#public-base-path).

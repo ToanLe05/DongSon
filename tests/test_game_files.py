@@ -29,6 +29,68 @@ def export(s):
     return s.dispatch("/export", context(s))["file"]
 
 
+@pytest.mark.parametrize("side", ["thuy", "son"])
+def test_portable_config_identifies_each_controller_and_survives_terminal_save(side):
+    s = BrowserSession()
+    config = {"mode": "human_vs_bot", "humanColor": side, "botId": "random"}
+    s.dispatch("/new_game", context(s, **config))
+    if side == "son":
+        s.dispatch("/ai_move", context(s))
+    text = export(s)
+    assert json.loads(text)["snapshot"]["matchConfig"] == config
+    target = started()
+    state = target.dispatch("/import", context(target, file=text))
+    assert state["matchConfig"] == config and state["turn"] == side
+    assert BrowserSession.restore(target.checkpoint()).state() == state
+    with pytest.raises(RuleError) as error:
+        target.dispatch("/ai_move", context(target))
+    assert error.value.detail["code"] == "human_turn"
+    state["matchConfig"]["humanColor"] = "bad"
+    assert target.state()["matchConfig"] == config
+    target.dispatch("/resign", context(target))
+    restored = inspect_file(export(target))
+    assert restored.state()["matchConfig"] == config
+    assert restored.state()["gameOver"]
+
+
+@pytest.mark.parametrize("old,expected", [
+    (None, {"mode": "human_vs_human", "humanColor": None, "botId": None}),
+    ({"mode": "pvp", "humanSide": "son"}, {"mode": "human_vs_human", "humanColor": None, "botId": None}),
+    ({"mode": "bot", "humanSide": "thuy"}, {"mode": "human_vs_bot", "humanColor": "thuy", "botId": "random"}),
+    ({"mode": "bot", "humanSide": "son"}, {"mode": "human_vs_bot", "humanColor": "son", "botId": "random"}),
+])
+def test_old_config_migrates_in_checkpoint_and_exported_json(old, expected):
+    source = started()
+    file = json.loads(export(source))
+    if old is None:
+        file["snapshot"].pop("matchConfig")
+    else:
+        file["snapshot"]["matchConfig"] = old
+    restored = inspect_file(json.dumps(file))
+    assert restored.state()["matchConfig"] == expected
+    assert json.loads(restored.checkpoint())["matchConfig"] == expected
+    assert json.loads(export(restored))["snapshot"]["matchConfig"] == expected
+
+
+@pytest.mark.parametrize("config", [
+    {"mode": "unknown"}, {"mode": "human_vs_bot", "humanColor": "son", "botId": "unknown"},
+    {"mode": "human_vs_bot", "humanColor": "bad", "botId": "random"},
+    {"mode": "human_vs_bot", "humanColor": None, "botId": "random"},
+    {"mode": "human_vs_bot", "humanColor": "thuy"},
+    {"mode": "human_vs_human", "botId": "random"},
+    {"mode": "human_vs_human", "humanColor": "thuy"}, [], "bot",
+])
+def test_invalid_controller_config_cannot_replace_current_game(config):
+    s = started()
+    before = s.checkpoint()
+    file = json.loads(export(s))
+    file["snapshot"]["matchConfig"] = config
+    with pytest.raises(RuleError) as error:
+        s.dispatch("/import", context(s, file=json.dumps(file)))
+    assert error.value.detail["code"] == "invalid_save"
+    assert s.checkpoint() == before
+
+
 def without_version(state):
     return {k: v for k, v in state.items() if k not in ("gameId", "revision")}
 

@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from dongson_engine import (Board, Color, DongSonGame, Move, Piece, PieceType,
                            _HistoryEntry, GROUP_SINH_LE, PALACE_SQUARES, CENTER)
 import serializers as ser
+from bot_agent import BotAgent
 
 
 class RuleError(Exception):
@@ -30,6 +31,25 @@ _GAME_FIELDS = ("board", "turn", "halfmove_clock", "fullmove_number", "history",
                 "draw_offer_pending", "moves_played")
 
 MAX_FILE_BYTES = 16 * 1024 * 1024
+
+
+def match_config(value=None):
+    """Normalize the portable configuration, including saves from the first bot UI."""
+    if value is None:
+        return {"mode": "human_vs_human", "humanColor": None, "botId": None}
+    if not isinstance(value, dict):
+        raise ValueError("Invalid match configuration")
+    mode = value.get("mode")
+    if mode in ("pvp", "bot"):
+        if value.get("humanSide") not in ("thuy", "son") or value.get("botId") not in (None, "random"):
+            raise ValueError("Invalid legacy match configuration")
+        value = {"mode": "human_vs_bot", "humanColor": value["humanSide"], "botId": "random"} if mode == "bot" else {}
+        mode = value.get("mode", "human_vs_human")
+    if mode == "human_vs_human" and value.get("humanColor") is None and value.get("botId") is None:
+        return {"mode": mode, "humanColor": None, "botId": None}
+    if mode == "human_vs_bot" and value.get("humanColor") in ("thuy", "son") and value.get("botId") == "random":
+        return {"mode": mode, "humanColor": value["humanColor"], "botId": "random"}
+    raise ValueError("Invalid match configuration")
 
 
 def validate_saved_session(session):
@@ -73,6 +93,7 @@ def validate_saved_session(session):
         require(all(n == 1 for n in kings.values()))
 
     g = session.game
+    match_config(session.match_config)
     require(session.started is True and isinstance(session.game_id, str) and 0 < len(session.game_id) <= 128)
     integer(session.revision)
     require(session.resigned_winner in (None, "thuy", "son"))
@@ -93,7 +114,8 @@ def validate_saved_session(session):
     require(g.position_history[-1] == g.position_key())
     require(not g.validator.is_in_check(g.board, g.turn.opposite()))
     if session.resigned_winner is not None:
-        require(session.resigned_winner == g.turn.opposite().value and g.result().value == "ongoing")
+        resigning = Color(session.match_config["humanColor"]) if session.match_config["mode"] == "human_vs_bot" else g.turn
+        require(session.resigned_winner == resigning.opposite().value and g.result().value == "ongoing")
 
     for i, entry in enumerate(g.history):
         require(isinstance(entry, _HistoryEntry) and isinstance(entry.move, Move))
@@ -194,12 +216,15 @@ class BrowserSession:
         self.started = False
         self.resigned_winner = None
         self.finished_state = None
+        self.match_config = match_config()
+        self.bot_agent = BotAgent()
 
     def state(self):
         if self.finished_state is not None:
             return copy.deepcopy(self.finished_state)
         state = ser.serialize_state(self.game, self.resigned_winner)
-        state.update(gameId=self.game_id, revision=self.revision, started=self.started)
+        state.update(gameId=self.game_id, revision=self.revision, started=self.started,
+                     matchConfig=copy.deepcopy(self.match_config))
         if state["gameOver"]:
             self.finished_state = copy.deepcopy(state)
         return state
@@ -223,6 +248,7 @@ class BrowserSession:
         return json.dumps({
             "schema": 1, "gameId": self.game_id, "revision": self.revision,
             "started": self.started, "resignedWinner": self.resigned_winner,
+            "matchConfig": self.match_config,
             "game": {key: encode(getattr(self.game, key)) for key in _GAME_FIELDS},
         }, separators=(",", ":"))
 
@@ -236,6 +262,7 @@ class BrowserSession:
             setattr(session.game, key, decode(data["game"][key]))
         session.game_id, session.revision = data["gameId"], data["revision"]
         session.started, session.resigned_winner = data["started"], data["resignedWinner"]
+        session.match_config = match_config(data.get("matchConfig"))
         session.state()  # Validate before replacing the current session.
         return session
 
@@ -267,35 +294,75 @@ class BrowserSession:
         if endpoint == "/legal_moves":
             if self.state()["gameOver"]:
                 return []
-            return ser.serialize_legal_moves(self.game.legal_moves(self.square(data.get("square"))))
+            square = self.square(data.get("square"))
+            if self.match_config["mode"] == "human_vs_bot":
+                human = Color(self.match_config["humanColor"])
+                piece = self.game.board.get(square)
+                if self.game.turn is not human or piece is None or piece.color is not human:
+                    return []
+            return ser.serialize_legal_moves(self.game.legal_moves(square))
         if endpoint == "/new_game":
             self.current(data)
             if self.started and not self.state()["gameOver"]:
                 raise RuleError(409, "active_game", "Ván cờ đang diễn ra.", self.state())
+            try:
+                values = {key: data[key] for key in ("mode", "humanColor", "botId", "humanSide") if key in data}
+                config = match_config(values if values else None)
+            except ValueError:
+                raise RuleError(422, "invalid_config", "Lựa chọn cách chơi không hợp lệ.") from None
             self.__init__()
+            self.match_config = config
             self.started = True
             return self.state()
-        if endpoint not in ("/move", "/resign", "/draw"):
+        if endpoint not in ("/move", "/ai_move", "/resign", "/draw"):
             raise RuleError(404, "unsupported", "Thao tác không có trong bản chơi hai người.")
         self.active(data)
+        bot_game = self.match_config["mode"] == "human_vs_bot"
+        human = Color(self.match_config["humanColor"]) if bot_game else self.game.turn
+        if endpoint == "/ai_move":
+            if not bot_game:
+                raise RuleError(409, "bot_unavailable", "Ván này dành cho hai người.")
+            if self.game.draw_offer_pending is human:
+                self.game.accept_draw(human.opposite())
+                return self.changed()
+            if self.game.turn is human:
+                raise RuleError(409, "human_turn", "Đang đến lượt của bạn.", self.state())
+            try:
+                chosen = self.bot_agent.select_move(copy.deepcopy(self.game))
+            except Exception:
+                raise RuleError(503, "bot_error", "Bot gặp lỗi khi chọn nước. Ván cờ được giữ nguyên; hãy thử lại.", self.state()) from None
+            if not isinstance(chosen, Move) or not self.game.make_move(chosen):
+                raise RuleError(409, "no_bot_move", "Bot không có nước đi hợp lệ.", self.state())
+            return self.changed()
+        if endpoint == "/resign":
+            if bot_game and data.get("color") not in (None, human.value):
+                raise RuleError(409, "not_human", "Chỉ bên người chơi được yêu cầu đầu hàng.", self.state())
+            self.resigned_winner = human.opposite().value
+            self.game.draw_offer_pending = None
+            return self.changed()
+        if bot_game and self.game.turn is not human:
+            raise RuleError(409, "bot_turn", "Hãy chờ bot đi xong.", self.state())
         if endpoint == "/move":
             source, target = data.get("from"), data.get("to")
-            self.square(source)
+            origin = self.square(source)
             self.square(target)
+            if bot_game:
+                piece = self.game.board.get(origin)
+                if piece is None or piece.color is not human:
+                    raise RuleError(409, "not_human", "Bạn chỉ được điều khiển quân của bên đã chọn.", self.state())
             promotion = {"Ngua": "n", "Voi": "v", "Ga": "g"}.get(data.get("promotion"), data.get("promotion"))
             if promotion not in (None, "n", "v", "g"):
                 raise RuleError(422, "invalid_promotion", "Quân phong cấp không hợp lệ.")
             if not self.game.make_move_named(source, target, promotion):
                 raise RuleError(400, "illegal_move", "Nước đi không hợp lệ.")
             return self.changed()
-        if endpoint == "/resign":
-            self.resigned_winner = self.game.turn.opposite().value
-            return self.changed()
         action = data.get("action", "offer")
         try:
             color = Color(data["color"]) if data.get("color") else self.game.turn
         except ValueError:
             raise RuleError(422, "invalid_color", "Bên chơi không hợp lệ.") from None
+        if bot_game and color is not human:
+            raise RuleError(409, "not_human", "Chỉ bên người chơi được gửi yêu cầu hòa.", self.state())
         if action in ("accept", "decline") and not data.get("color"):
             raise RuleError(400, "missing_color", "Cần xác định bên trả lời đề nghị hòa.")
         handlers = {"offer": self.game.offer_draw, "accept": self.game.accept_draw,
