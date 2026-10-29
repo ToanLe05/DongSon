@@ -1,0 +1,5 @@
+# Python 3.12; constraints also pin the runtime's indirect dependencies.
+-c constraints.txt
+fastapi==0.139.2
+uvicorn==0.51.0
+pydantic==2.13.4

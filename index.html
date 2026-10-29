@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cờ Đông Sơn</title>
+    <link rel="icon" type="image/png" href="./src/assets/pieces/thuy_than.png" />
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+
+    <div id="stage">
+      <div id="canvas-root"></div>
+    </div>
+
+    <div id="control-bar">
+      <div id="match-info">
+        <div class="play-mode">Hai người · Cùng thiết bị · Thủy đi trước</div>
+        <div id="status-line" role="status" aria-live="polite">Đang tải bàn cờ…</div>
+        <div id="action-message" role="alert"></div>
+      </div>
+      <div id="controls">
+        <button id="btn-start" class="btn btn-primary" disabled>Bắt đầu</button>
+        <button id="btn-rematch" class="btn btn-primary" hidden>Chơi lại</button>
+        <button id="btn-end" class="btn btn-ghost" disabled>Đầu hàng</button>
+        <button id="btn-draw" class="btn btn-ghost" hidden disabled>Đề nghị hòa</button>
+        <button id="btn-claim-fifty" class="btn btn-ghost" hidden disabled>Yêu cầu hòa 50 nước</button>
+        <button id="btn-rules" class="btn btn-ghost">Cách chơi</button>
+      </div>
+      <div id="draw-response" role="group" aria-label="Trả lời đề nghị hòa" hidden>
+        <button id="btn-accept-draw" class="btn btn-primary" disabled>Đồng ý hòa</button>
+        <button id="btn-decline-draw" class="btn btn-ghost" disabled>Tiếp tục chơi</button>
+      </div>
+      <div id="file-controls" role="group" aria-label="Lưu và tải ván" hidden>
+        <button id="btn-save-game" class="btn btn-ghost" disabled>Lưu ván</button>
+        <button id="btn-load-game" class="btn btn-ghost" disabled>Tải ván</button>
+        <button id="btn-export-game" class="btn btn-ghost" disabled>Xuất JSON</button>
+        <button id="btn-import-game" class="btn btn-ghost" disabled>Nhập JSON</button>
+      </div>
+      <input id="game-import" type="file" accept=".json,application/json" hidden />
+    </div>
+
+    <dialog id="rules-dialog" class="choice-dialog" aria-labelledby="rules-title">
+      <h2 id="rules-title">Cách chơi hai người</h2>
+      <p>Hai người luân phiên trên bàn này. Bấm quân của bên đến lượt để xem nước hợp lệ, rồi bấm ô đích. Bấm lại quân để bỏ chọn. Thủy ở dưới, Sơn ở trên.</p>
+      <ul>
+        <li><strong>Thần:</strong> đi thẳng hoặc chéo bao nhiêu ô tùy ý; không được để Thần bị chiếu.</li>
+        <li><strong>Lạc:</strong> đi thẳng. <strong>Bộ:</strong> tiến 1 ô trống, bắt chéo trước. <strong>Đinh:</strong> đi hoặc bắt thẳng trước 1 ô.</li>
+        <li><strong>Ngựa:</strong> nhảy chữ L. <strong>Voi:</strong> nhảy chéo 1–2 ô. <strong>Gà:</strong> nhảy thẳng đúng 2 ô. Ba loại này không bị cản ở giữa.</li>
+        <li><strong>Sính lễ:</strong> hai đầu nước đi phải cùng một vùng góc 5×5. Đã vào Cung d4–f6 thì chỉ đi trong Cung. Ngựa hoặc Gà phong cấp đến e5 sẽ đứng yên và không khống chế ô nào.</li>
+        <li><strong>Phong cấp:</strong> Bộ/Đinh đến hàng cuối phải chọn Voi, Gà hoặc Ngựa; có thể hủy lựa chọn để chọn nước khác.</li>
+        <li><strong>Hoán Quân:</strong> bấm Thần rồi Voi b1/h1 (hoặc b9/h9). Cả hai chưa đi, giữa không có quân và cả 4 ô không bị đối phương khống chế.</li>
+        <li><strong>Thắng:</strong> chiếu hạ, đối phương đầu hàng, hoặc Tiến Cung: Thần ở e5 an toàn, có ít nhất một Sính lễ trong Cung không thể bị bắt hợp lệ và đối phương không thể chiếu hạ ngay lượt sau.</li>
+        <li><strong>Hòa:</strong> thỏa thuận sau ít nhất một nước mỗi bên; bí nước; một bên trơ Thần; lặp thế lần ba. Đủ 50 nước mỗi bên không đi Bộ/Đinh và không bắt quân thì bên đến lượt được yêu cầu hòa.</li>
+      </ul>
+      <p>Hai người dùng chung màn hình. Luật được tính ngay trên thiết bị; sau khi tải xong có thể tiếp tục chơi khi mất mạng. Tải lại cùng tab sẽ khôi phục ván đã lưu trong trình duyệt. Mỗi tab thường có một ván riêng; xóa dữ liệu trang sẽ xóa các bản lưu.</p>
+      <p><strong>Lưu và tải:</strong> Lưu ván giữ một bản riêng trong trình duyệt, dùng Tải ván để mở lại kể cả ở tab mới. Lưu lần sau thay bản trước. Xuất JSON tải tệp về máy để giữ lâu dài hoặc chuyển thiết bị; Nhập JSON nhận tệp tối đa 16 MB. Bản nhập được kiểm tra và hỏi xác nhận trước khi thay bàn hiện tại.</p>
+      <p><a href="https://codongson.vn/luat-choi-co-ban/" target="_blank" rel="noopener noreferrer">Luật nguồn</a> · Quy ước của bản chơi: bốn vùng góc 5×5, bí nước xử hòa; quân đóng băng bị bắt thì ô e5 được giải phóng.</p>
+      <form method="dialog"><button class="btn btn-primary">Đã hiểu</button></form>
+    </dialog>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,15 @@
+**
+!package.json
+!package-lock.json
+!.npmrc
+!index.html
+!vite.config.js
+!scripts/
+!scripts/pyodide-assets.cjs
+!scripts/pages-base.cjs
+!scripts/serve-static.cjs
+!src/
+!src/**
+src/saves/
+src/__pycache__/
+src/test_*.py
